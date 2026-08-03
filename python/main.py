@@ -1,4 +1,4 @@
-from classic import main
+from ui_choix_parametres import main
 
 
 if __name__ == "__main__":
