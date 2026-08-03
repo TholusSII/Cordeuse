@@ -4,29 +4,13 @@ import sys
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPen, QPolygon
+from PySide6.QtCore import QRect, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
-    QApplication,
-    QCheckBox,
-    QFrame,
-    QHeaderView,
-    QLabel,
-    QMainWindow,
-    QMessageBox,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
-    QWidget,
+    QApplication, QCheckBox, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
+    QLabel, QMainWindow, QMessageBox, QPushButton, QSizePolicy,
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
-
-
-FACE = "#d4d0c8"
-LIGHT = "#ffffff"
-SHADOW = "#808080"
-DARK = "#404040"
-TITLE_BLUE = "#0a246a"
-SELECTION_BLUE = "#000080"
 
 
 class SelectionMode(Enum):
@@ -40,69 +24,89 @@ class Parameter:
     code: str
     label: str
     unit: str
+    accent: str
 
 
 PARAMETERS = {
-    "Fc": Parameter("Fc", "Effort corde", "N"),
-    "U": Parameter("U", "Tension moteur", "V"),
-    "I": Parameter("I", "Courant moteur", "A"),
-    "Er": Parameter("Er", "Écrasement ressort", "mm"),
-    "theta_red": Parameter("θred", "Angle réducteur", "°"),
-    "t": Parameter("t", "Temps", "s"),
-    "formula": Parameter("Y=√", "Formule", ""),
-    "Fr": Parameter("Fr", "Effort ressort", "N"),
-    "Dch": Parameter("Dch", "Déplacement chariot", "mm"),
-    "Vch": Parameter("Vch", "Vitesse chariot", "mm/s"),
-    "theta_m": Parameter("θm", "Angle moteur", "°"),
-    "omega_m": Parameter("Ωm", "Vitesse moteur", "tr/min"),
-    "omega_red": Parameter("Ωred", "Vitesse réducteur", "tr/min"),
+    "Fc": Parameter("Fc", "Effort corde", "N", "#ef4444"),
+    "U": Parameter("U", "Tension moteur", "V", "#2563eb"),
+    "I": Parameter("I", "Courant moteur", "A", "#eab308"),
+    "Er": Parameter("Er", "Écrasement ressort", "mm", "#16a34a"),
+    "theta_red": Parameter("θred", "Angle réducteur", "°", "#14b8a6"),
+    "t": Parameter("t", "Temps", "s", "#7c3aed"),
+    "formula": Parameter("Y=f", "Formule", "", "#64748b"),
+    "Fr": Parameter("Fr", "Effort ressort", "N", "#22c55e"),
+    "Dch": Parameter("Dch", "Déplacement chariot", "mm", "#0ea5e9"),
+    "Vch": Parameter("Vch", "Vitesse chariot", "mm/s", "#0891b2"),
+    "theta_m": Parameter("θm", "Angle moteur", "°", "#8b5cf6"),
+    "omega_m": Parameter("Ωm", "Vitesse moteur", "tr/min", "#f97316"),
+    "omega_red": Parameter("Ωred", "Vitesse réducteur", "tr/min", "#ec4899"),
 }
 
 
-class RaisedButton(QPushButton):
+APP_STYLE = """
+QMainWindow, QWidget#root { background:#f4f7fb; color:#172033; }
+QMenuBar { background:#ffffff; border-bottom:1px solid #e4e9f2; padding:4px 8px; font:13px 'Segoe UI'; }
+QMenuBar::item { padding:6px 10px; border-radius:6px; }
+QMenuBar::item:selected { background:#eef4ff; color:#1558d6; }
+QMenu { background:white; border:1px solid #dfe5ef; padding:6px; }
+QMenu::item { padding:7px 28px 7px 10px; border-radius:5px; }
+QMenu::item:selected { background:#eaf2ff; color:#1558d6; }
+QFrame#card { background:#ffffff; border:1px solid #e0e6ef; border-radius:14px; }
+QLabel#title { font:700 22px 'Segoe UI'; color:#15233d; }
+QLabel#subtitle { font:12px 'Segoe UI'; color:#667085; }
+QLabel#section { font:600 13px 'Segoe UI'; color:#344054; }
+QLabel#status { background:#edf4ff; border:1px solid #d7e6ff; border-radius:10px; padding:8px 12px; color:#2457a7; font:12px 'Segoe UI'; }
+QPushButton { background:#ffffff; border:1px solid #d8dee9; border-radius:9px; padding:8px 12px; font:12px 'Segoe UI'; color:#24324a; }
+QPushButton:hover { background:#f6f9ff; border-color:#9bbcf2; }
+QPushButton:pressed { background:#e8f0fd; }
+QPushButton:disabled { color:#a0a8b8; background:#f5f6f8; border-color:#e5e7eb; }
+QPushButton#primary { background:#2563eb; color:white; border:none; font-weight:600; }
+QPushButton#primary:hover { background:#1d4ed8; }
+QPushButton#danger { color:#b42318; background:#fff7f6; border-color:#f2c9c5; }
+QPushButton#modeActive { background:#eaf2ff; color:#1558d6; border:1px solid #8fb5ef; font-weight:600; }
+QTableWidget { background:white; border:1px solid #e0e6ef; border-radius:9px; gridline-color:#eef1f5; selection-background-color:#dce9ff; selection-color:#173b75; font:12px 'Segoe UI'; }
+QHeaderView::section { background:#f8fafc; border:0; border-bottom:1px solid #e5eaf1; padding:7px; font:600 11px 'Segoe UI'; color:#475467; }
+QCheckBox { spacing:8px; font:12px 'Segoe UI'; color:#344054; }
+QCheckBox::indicator { width:17px; height:17px; border:1px solid #b7c0cf; border-radius:5px; background:white; }
+QCheckBox::indicator:checked { background:#2563eb; border-color:#2563eb; }
+QToolTip { background:#1f2937; color:white; border:none; padding:5px; }
+"""
+
+
+class ModernButton(QPushButton):
     def __init__(self, text: str = "", parent: QWidget | None = None):
         super().__init__(text, parent)
-        self.setStyleSheet(
-            "QPushButton{background:#d4d0c8;color:black;border:2px outset #efefef;"
-            "padding:2px;font:11px 'MS Sans Serif';text-align:center;}"
-            "QPushButton:pressed{border:2px inset #efefef;}"
-            "QPushButton:disabled{color:#808080;}"
-        )
+        self.setCursor(Qt.PointingHandCursor)
 
 
-class ParameterButton(RaisedButton):
+class ParameterButton(ModernButton):
     selected = Signal(str)
 
     def __init__(self, key: str, parent: QWidget):
-        super().__init__(PARAMETERS[key].code, parent)
+        parameter = PARAMETERS[key]
+        super().__init__(f"{parameter.code}\n{parameter.label}", parent)
         self.key = key
-        self.setToolTip(f"{PARAMETERS[key].label} ({PARAMETERS[key].unit})".strip())
+        self.setToolTip(
+            f"{parameter.label} ({parameter.unit})" if parameter.unit else parameter.label
+        )
+        self.setStyleSheet(
+            f"QPushButton{{background:white;border:1px solid #dce3ec;"
+            f"border-left:4px solid {parameter.accent};border-radius:9px;"
+            "padding:4px 7px;text-align:left;font:600 11px 'Segoe UI';color:#24324a;}"
+            "QPushButton:hover{background:#f7faff;border-color:#9bbcf2;}"
+            "QPushButton:pressed{background:#eaf2ff;}"
+        )
         self.clicked.connect(lambda: self.selected.emit(self.key))
-        self.setStyleSheet(
-            "QPushButton{background:#d4d0c8;border:2px outset #efefef;"
-            "font:bold 15px 'Times New Roman';padding:0;}"
-            "QPushButton:pressed{border:2px inset #efefef;background:#c0c0c0;}"
-        )
-
-
-class LeftToolButton(RaisedButton):
-    def __init__(self, symbol: str, tooltip: str, parent: QWidget):
-        super().__init__(symbol, parent)
-        self.setToolTip(tooltip)
-        self.setFixedSize(36, 36)
-        self.setStyleSheet(
-            "QPushButton{background:#d4d0c8;border:2px outset #efefef;"
-            "font:bold 17px 'MS Sans Serif';padding:0;}"
-            "QPushButton:pressed{border:2px inset #efefef;}"
-        )
 
 
 class MachineDiagram(QWidget):
     parameter_selected = Signal(str)
 
-    def __init__(self, parent: QWidget):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setStyleSheet("background:#efefef;border:1px solid #b8b8b8;")
+        self.setMinimumSize(610, 460)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.buttons: dict[str, ParameterButton] = {}
         self._create_buttons()
 
@@ -113,93 +117,65 @@ class MachineDiagram(QWidget):
         self.buttons[key] = button
 
     def _create_buttons(self) -> None:
-        self._button("Fc", QRect(8, 5, 48, 32))
-        self._button("U", QRect(266, 5, 45, 32))
-        self._button("I", QRect(317, 5, 45, 32))
-        self._button("Er", QRect(18, 284, 52, 34))
-        self._button("theta_red", QRect(310, 284, 58, 34))
-        self._button("formula", QRect(0, 332, 50, 36))
-        self._button("t", QRect(52, 332, 44, 36))
-        self._button("Fr", QRect(116, 332, 47, 36))
-        self._button("Dch", QRect(165, 332, 47, 36))
-        self._button("Vch", QRect(214, 332, 47, 36))
-        self._button("theta_m", QRect(263, 332, 47, 36))
-        self._button("omega_m", QRect(312, 332, 47, 36))
-        self._button("omega_red", QRect(361, 332, 55, 36))
+        self._button("Fc", QRect(18, 16, 128, 50))
+        self._button("U", QRect(364, 16, 112, 50))
+        self._button("I", QRect(482, 16, 112, 50))
+        self._button("Er", QRect(24, 350, 118, 50))
+        self._button("theta_red", QRect(476, 350, 118, 50))
+        keys = ["formula", "t", "Fr", "Dch", "Vch", "theta_m", "omega_m", "omega_red"]
+        widths = [78, 68, 72, 86, 82, 80, 84, 92]
+        x = 10
+        for key, width in zip(keys, widths):
+            self._button(key, QRect(x, 408, width, 48))
+            x += width + 5
 
     def paintEvent(self, event) -> None:  # noqa: N802
         super().paintEvent(event)
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, False)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.fillRect(self.rect(), QColor("#fbfcfe"))
 
-        # Fond du bâti, proche de la capture 800x600 d'origine.
-        painter.fillRect(QRect(13, 112, 392, 166), QColor("#252525"))
-        painter.fillRect(QRect(22, 125, 374, 12), QColor("#545454"))
-        painter.fillRect(QRect(22, 144, 374, 13), QColor("#7a7a7a"))
-        painter.fillRect(QRect(22, 251, 374, 13), QColor("#777777"))
-
-        # Barre/chariot.
-        painter.fillRect(QRect(14, 139, 393, 13), QColor("#68b9b9"))
-        painter.setPen(QPen(QColor("#aef0ef"), 2))
-        painter.drawLine(16, 141, 405, 141)
-        painter.setPen(QPen(QColor("#333333"), 1))
-        painter.drawRect(QRect(14, 139, 393, 13))
-
-        # Chariot rose et coulisseau.
-        painter.fillRect(QRect(143, 75, 82, 91), QColor("#ef8f8f"))
-        painter.fillRect(QRect(151, 150, 71, 71), QColor("#e98f8f"))
-        painter.fillRect(QRect(147, 144, 86, 14), QColor("#db7777"))
-        painter.fillRect(QRect(172, 216, 32, 44), QColor("#a7a7a7"))
-        painter.setPen(QPen(QColor("#666666"), 1))
-        painter.drawRect(QRect(143, 75, 82, 91))
-        painter.drawRect(QRect(151, 150, 71, 71))
-
-        # Deux trous blancs visibles sur le chariot.
+        painter.setPen(QPen(QColor("#d9e0ea"), 1))
+        painter.setBrush(QColor("#f2f5f9"))
+        painter.drawRoundedRect(QRect(16, 78, self.width() - 32, 258), 16, 16)
+        painter.setBrush(QColor("#23262d"))
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(QRect(54, 170, self.width() - 108, 122), 8, 8)
+        painter.setBrush(QColor("#76c9c8"))
+        painter.drawRoundedRect(QRect(58, 190, self.width() - 116, 18), 8, 8)
+        painter.setBrush(QColor("#ee8f95"))
+        painter.drawRoundedRect(QRect(238, 110, 130, 130), 10, 10)
+        painter.setBrush(QColor("#d86f78"))
+        painter.drawRoundedRect(QRect(224, 190, 158, 28), 8, 8)
+        painter.setBrush(QColor("#9ca3af"))
+        painter.drawRoundedRect(QRect(280, 228, 54, 55), 8, 8)
         painter.setBrush(QColor("white"))
-        painter.setPen(Qt.NoPen)
-        painter.drawEllipse(QRect(158, 94, 17, 17))
-        painter.drawEllipse(QRect(194, 94, 17, 17))
+        painter.drawEllipse(QRect(260, 135, 22, 22))
+        painter.drawEllipse(QRect(320, 135, 22, 22))
 
-        # Ressort calibré.
-        painter.setPen(QPen(QColor("#6c5424"), 2))
-        x0, y0 = 160, 210
-        for i in range(11):
-            x = x0 + i * 6
-            painter.drawLine(x, y0, x + 3, y0 - 15)
-            painter.drawLine(x + 3, y0 - 15, x + 6, y0)
-        painter.setPen(QPen(QColor("#c7a752"), 2))
-        painter.drawLine(153, 211, 232, 211)
+        painter.setPen(QPen(QColor("#b0893a"), 3))
+        x0, y0 = 242, 262
+        for index in range(12):
+            x = x0 + index * 10
+            painter.drawLine(x, y0, x + 5, y0 - 22)
+            painter.drawLine(x + 5, y0 - 22, x + 10, y0)
+        painter.setPen(QPen(QColor("#8b6f2f"), 2))
+        painter.drawLine(236, 264, 366, 264)
 
-        # Capteur/potentiomètre à droite.
-        painter.setBrush(QColor("#ececec"))
-        painter.setPen(QPen(QColor("#353535"), 2))
-        painter.drawEllipse(QRect(358, 178, 33, 33))
-        painter.setBrush(QColor("#dadada"))
-        painter.drawEllipse(QRect(368, 188, 12, 12))
+        painter.setPen(QPen(QColor("#475467"), 3))
+        painter.setBrush(QColor("#eef2f7"))
+        painter.drawEllipse(QRect(self.width() - 126, 220, 48, 48))
+        painter.setBrush(QColor("#d7deea"))
+        painter.drawEllipse(QRect(self.width() - 111, 235, 18, 18))
 
-        # Petites pièces et vis du bâti.
-        painter.setBrush(QColor("#d6d6d6"))
-        painter.setPen(Qt.NoPen)
-        for x, y in [(25, 232), (25, 245), (399, 178), (399, 220), (349, 248)]:
-            painter.drawEllipse(QRect(x, y, 7, 7))
-
-        # Corde et fils/capteurs.
-        painter.setPen(QPen(QColor("#707070"), 2))
-        painter.drawLine(53, 51, 132, 69)
-        painter.drawLine(132, 69, 180, 74)
-        painter.drawLine(225, 75, 336, 43)
-        painter.drawLine(336, 43, 345, 29)
-
-        # Traits bleus reliant les icônes aux zones correspondantes.
-        painter.setPen(QPen(QColor("#0000aa"), 2))
-        painter.drawLine(34, 38, 42, 64)
-        painter.drawLine(42, 64, 72, 70)
-        painter.drawLine(42, 284, 125, 216)
-        painter.drawLine(339, 284, 374, 207)
-
-        # Légers détails noirs en partie haute.
-        painter.fillRect(QRect(98, 115, 31, 10), QColor("#111111"))
-        painter.fillRect(QRect(247, 115, 31, 10), QColor("#111111"))
+        painter.setPen(QPen(QColor("#2563eb"), 2))
+        painter.drawLine(80, 66, 104, 118)
+        painter.drawLine(104, 118, 160, 145)
+        painter.drawLine(82, 350, 220, 270)
+        painter.drawLine(self.width() - 74, 350, self.width() - 101, 266)
+        painter.setPen(QPen(QColor("#667085"), 2))
+        painter.drawLine(430, 66, 365, 106)
+        painter.drawLine(540, 66, 468, 122)
 
 
 class ChoiceWindow(QMainWindow):
@@ -208,10 +184,10 @@ class ChoiceWindow(QMainWindow):
         self.mode = SelectionMode.NONE
         self.abscissa_key = "t"
         self.ordinate_keys = ["Fr", "Er", "Fc"]
-
         self.setWindowTitle("Cordeuse de raquettes SP55")
-        self.setFixedSize(800, 600)
-        self.setStyleSheet("QMainWindow{background:#d4d0c8;} QToolTip{font:11px 'MS Sans Serif';}")
+        self.resize(1180, 760)
+        self.setMinimumSize(1040, 680)
+        self.setStyleSheet(APP_STYLE)
         self._build_menu()
         self._build_ui()
         self._refresh()
@@ -219,174 +195,251 @@ class ChoiceWindow(QMainWindow):
     def _build_menu(self) -> None:
         bar = self.menuBar()
         bar.setNativeMenuBar(False)
-        bar.setStyleSheet(
-            "QMenuBar{background:#d4d0c8;color:#303030;font:11px 'MS Sans Serif';padding:1px;}"
-            "QMenuBar::item{padding:2px 7px;}QMenuBar::item:selected{background:#0a246a;color:white;}"
-            "QMenu{background:#d4d0c8;font:11px 'MS Sans Serif';}"
-        )
-        for title in ["Fichier", "Effacer", "Mesures", "Courbes", "Aide"]:
+        menus = {
+            "Fichier": ["Nouveau", "Ouvrir", "Sauver"],
+            "Mesures": ["Acquisition", "Sélectionner tout"],
+            "Courbes": ["Choix des paramètres", "Tracer"],
+            "Aide": ["Aide", "À propos"],
+        }
+        for title, action_names in menus.items():
             menu = bar.addMenu(title)
-            action = QAction(title, self)
-            menu.addAction(action)
+            for action_name in action_names:
+                menu.addAction(QAction(action_name, self))
 
     def _build_ui(self) -> None:
-        root = QWidget(self)
+        root = QWidget()
+        root.setObjectName("root")
         self.setCentralWidget(root)
-        root.setStyleSheet("background:#d4d0c8;")
+        outer = QHBoxLayout(root)
+        outer.setContentsMargins(18, 18, 18, 18)
+        outer.setSpacing(16)
 
-        # Barre d'outils verticale d'origine.
-        toolbar = QFrame(root)
-        toolbar.setGeometry(0, 0, 42, 522)
-        toolbar.setStyleSheet("background:#d4d0c8;border-right:1px solid #808080;")
-        symbols = [
-            ("□", "Nouveau"), ("▰", "Ouvrir"), ("▣", "Sauver"),
-            ("✎", "Effacer"), ("⌁", "Mesures"), ("⌁", "Courbes"),
-        ]
-        y = 8
-        for symbol, tip in symbols:
-            button = LeftToolButton(symbol, tip, toolbar)
-            button.move(3, y)
-            y += 43
-        config = LeftToolButton("▥", "Configuration", toolbar)
-        config.move(3, 318)
+        side = QFrame()
+        side.setObjectName("card")
+        side.setFixedWidth(92)
+        side_layout = QVBoxLayout(side)
+        side_layout.setContentsMargins(12, 16, 12, 16)
+        side_layout.setSpacing(10)
+        brand = QLabel("SP55")
+        brand.setAlignment(Qt.AlignCenter)
+        brand.setStyleSheet("font:700 19px 'Segoe UI';color:#1558d6;padding:8px;")
+        side_layout.addWidget(brand)
+        for symbol, tooltip in [
+            ("＋", "Nouveau"), ("📂", "Ouvrir"), ("💾", "Sauver"),
+            ("✕", "Effacer"), ("◉", "Mesures"), ("⌁", "Courbes"),
+        ]:
+            button = ModernButton(symbol)
+            button.setToolTip(tooltip)
+            button.setFixedHeight(50)
+            button.setStyleSheet(
+                "QPushButton{font-size:20px;padding:0;}"
+                "QPushButton:hover{background:#eaf2ff;}"
+            )
+            side_layout.addWidget(button)
+        side_layout.addStretch()
+        configuration_button = ModernButton("⚙")
+        configuration_button.setToolTip("Configuration")
+        configuration_button.setFixedHeight(50)
+        side_layout.addWidget(configuration_button)
+        outer.addWidget(side)
 
-        # Fenêtre enfant bleue « Choix des paramètres ».
-        child = QFrame(root)
-        child.setGeometry(54, 8, 730, 448)
-        child.setStyleSheet("background:#d4d0c8;border:1px solid #808080;")
+        content = QVBoxLayout()
+        content.setSpacing(14)
+        outer.addLayout(content, 1)
+        header = QHBoxLayout()
+        titles = QVBoxLayout()
+        title = QLabel("Choix des paramètres")
+        title.setObjectName("title")
+        subtitle = QLabel(
+            "Sélectionnez les grandeurs à visualiser comme dans le logiciel SP55 d’origine."
+        )
+        subtitle.setObjectName("subtitle")
+        titles.addWidget(title)
+        titles.addWidget(subtitle)
+        header.addLayout(titles)
+        header.addStretch()
+        content.addLayout(header)
 
-        title = QLabel("  Choix des paramètres", child)
-        title.setGeometry(1, 1, 728, 20)
-        title.setStyleSheet("background:#0a246a;color:white;font:11px 'MS Sans Serif';border:0;")
-        for text, x in [("_", 660), ("□", 683), ("×", 706)]:
-            b = QLabel(text, child)
-            b.setGeometry(x, 2, 21, 18)
-            b.setAlignment(Qt.AlignCenter)
-            b.setStyleSheet("background:#d4d0c8;color:black;border:1px outset white;font:bold 11px Arial;")
+        body = QHBoxLayout()
+        body.setSpacing(14)
+        content.addLayout(body, 1)
 
-        # Schéma machine cliquable.
-        self.diagram = MachineDiagram(child)
-        self.diagram.setGeometry(8, 29, 418, 372)
+        machine_card = QFrame()
+        machine_card.setObjectName("card")
+        machine_layout = QVBoxLayout(machine_card)
+        machine_layout.setContentsMargins(14, 14, 14, 14)
+        self.diagram = MachineDiagram()
         self.diagram.parameter_selected.connect(self.parameter_clicked)
+        machine_layout.addWidget(self.diagram)
+        body.addWidget(machine_card, 3)
 
-        # Panneau de choix à droite.
-        panel = QFrame(child)
-        panel.setGeometry(432, 29, 218, 372)
-        panel.setStyleSheet("background:#d4d0c8;border:1px inset #ffffff;")
+        right = QVBoxLayout()
+        right.setSpacing(14)
+        body.addLayout(right, 2)
 
-        self.abscissa_button = RaisedButton("→ Abscisse", panel)
-        self.abscissa_button.setGeometry(7, 8, 98, 29)
-        self.abscissa_button.clicked.connect(lambda: self.set_mode(SelectionMode.ABSCISSA))
+        selection_card = QFrame()
+        selection_card.setObjectName("card")
+        selection_layout = QVBoxLayout(selection_card)
+        selection_layout.setContentsMargins(16, 16, 16, 16)
+        selection_layout.setSpacing(10)
+        section = QLabel("Paramètres d’affichage")
+        section.setObjectName("section")
+        selection_layout.addWidget(section)
 
-        self.abscissa_label = QLabel(panel)
-        self.abscissa_label.setGeometry(7, 40, 204, 22)
-        self.abscissa_label.setStyleSheet("background:white;border:1px inset #d4d0c8;font:11px Arial;padding-left:3px;")
+        mode_row = QHBoxLayout()
+        self.abscissa_button = ModernButton("→  Abscisse")
+        self.ordinate_button = ModernButton("↑  Ordonnée")
+        self.abscissa_button.clicked.connect(
+            lambda: self.set_mode(SelectionMode.ABSCISSA)
+        )
+        self.ordinate_button.clicked.connect(
+            lambda: self.set_mode(SelectionMode.ORDINATE)
+        )
+        mode_row.addWidget(self.abscissa_button)
+        mode_row.addWidget(self.ordinate_button)
+        selection_layout.addLayout(mode_row)
 
-        self.ordinate_button = RaisedButton("↑ Ordonnée", panel)
-        self.ordinate_button.setGeometry(7, 68, 94, 28)
-        self.ordinate_button.clicked.connect(lambda: self.set_mode(SelectionMode.ORDINATE))
+        self.abscissa_label = QLabel()
+        self.abscissa_label.setStyleSheet(
+            "background:#f8fafc;border:1px solid #e1e7ef;border-radius:8px;"
+            "padding:9px;font:600 12px 'Segoe UI';"
+        )
+        selection_layout.addWidget(self.abscissa_label)
 
-        self.delete_button = RaisedButton("✎  Supprimer", panel)
-        self.delete_button.setGeometry(112, 68, 99, 28)
+        ordinate_row = QHBoxLayout()
+        ordinate_row.addWidget(QLabel("Ordonnées sélectionnées"))
+        ordinate_row.addStretch()
+        self.delete_button = ModernButton("Supprimer")
+        self.delete_button.setObjectName("danger")
         self.delete_button.clicked.connect(self.remove_ordinate)
+        ordinate_row.addWidget(self.delete_button)
+        selection_layout.addLayout(ordinate_row)
 
-        self.table = QTableWidget(panel)
-        self.table.setGeometry(7, 100, 204, 121)
-        self.table.setColumnCount(2)
+        self.table = QTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["N°", "Paramètre"])
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SingleSelection)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.setShowGrid(True)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.table.setStyleSheet(
-            "QTableWidget{background:white;border:1px inset #d4d0c8;font:11px Arial;gridline-color:#c0c0c0;}"
-            "QTableWidget::item:selected{background:#000080;color:white;}"
-            "QHeaderView::section{background:#d4d0c8;border:1px outset white;font:11px Arial;padding:1px;}"
-        )
+        self.table.setMinimumHeight(150)
+        selection_layout.addWidget(self.table)
 
-        self.trace_button = RaisedButton("⌁  Tracer", panel)
-        self.trace_button.setGeometry(7, 329, 78, 35)
+        action_row = QHBoxLayout()
+        self.trace_button = ModernButton("Tracer les courbes")
+        self.trace_button.setObjectName("primary")
         self.trace_button.clicked.connect(self.trace)
+        edit_button = ModernButton("Éditer")
+        edit_button.clicked.connect(
+            lambda: QMessageBox.information(
+                self, "Éditer", "Édition des paramètres sélectionnés."
+            )
+        )
+        action_row.addWidget(self.trace_button, 2)
+        action_row.addWidget(edit_button, 1)
+        selection_layout.addLayout(action_row)
+        right.addWidget(selection_card, 3)
 
-        edit_button = RaisedButton("▤  Éditer", panel)
-        edit_button.setGeometry(87, 329, 78, 35)
-        edit_button.clicked.connect(lambda: QMessageBox.information(self, "Éditer", "Édition des paramètres sélectionnés."))
+        measure_card = QFrame()
+        measure_card.setObjectName("card")
+        measure_layout = QVBoxLayout(measure_card)
+        measure_layout.setContentsMargins(16, 14, 16, 14)
+        measure_layout.setSpacing(8)
+        measure_header = QHBoxLayout()
+        measure_title = QLabel("Mesures")
+        measure_title.setObjectName("section")
+        measure_header.addWidget(measure_title)
+        measure_header.addStretch()
+        clear_button = ModernButton("Tout désélectionner")
+        clear_button.clicked.connect(self.clear_measures)
+        reset_button = ModernButton("Réinitialiser")
+        reset_button.clicked.connect(self.restore_default)
+        measure_header.addWidget(clear_button)
+        measure_header.addWidget(reset_button)
+        measure_layout.addLayout(measure_header)
 
-        # Colonne « Mesures ».
-        measures = QFrame(child)
-        measures.setGeometry(653, 29, 70, 372)
-        measures.setStyleSheet("background:#d4d0c8;border:1px inset #ffffff;")
-        label = QLabel("Mesures", measures)
-        label.setGeometry(5, 2, 60, 20)
-        label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet("font:bold 11px Arial;border:0;")
-
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(8)
         self.measure_checks: list[QCheckBox] = []
-        for i in range(1, 11):
-            check = QCheckBox(f"n°{i}", measures)
-            check.setGeometry(8, 20 + (i - 1) * 21, 52, 20)
-            check.setStyleSheet("font:11px Arial;border:0;")
-            check.setChecked(i == 1)
+        for index in range(1, 11):
+            check = QCheckBox(f"Mesure n°{index}")
+            check.setChecked(index == 1)
             check.stateChanged.connect(self._refresh_trace_state)
             self.measure_checks.append(check)
+            grid.addWidget(check, (index - 1) // 5, (index - 1) % 5)
+        measure_layout.addLayout(grid)
+        right.addWidget(measure_card, 1)
 
-        for text, yy, callback in [
-            ("▣", 235, lambda: None),
-            ("✕", 264, self.clear_measures),
-            ("↶", 293, self.restore_default),
-            ("?  Aide", 322, self.show_help),
-            ("▥  Fermer", 351, self.close),
-        ]:
-            button = RaisedButton(text, measures)
-            button.setGeometry(5, yy, 60, 26)
-            button.clicked.connect(callback)
-
-        # Bas de la fenêtre, logo ACTIA.
-        logo = QLabel("ACTIA▦", root)
-        logo.setGeometry(395, 530, 151, 39)
-        logo.setAlignment(Qt.AlignCenter)
-        logo.setStyleSheet(
-            "background:black;color:white;border:3px outset #efefef;"
-            "font:bold 25px 'Times New Roman';"
+        footer = QHBoxLayout()
+        self.status = QLabel(
+            "Cliquez sur Abscisse ou Ordonnée puis sur une grandeur."
         )
-
-        self.status = QLabel("Cliquez sur Abscisse ou Ordonnée puis sur une grandeur.", root)
-        self.status.setGeometry(55, 462, 720, 24)
-        self.status.setStyleSheet("font:11px 'MS Sans Serif';border:0;")
+        self.status.setObjectName("status")
+        footer.addWidget(self.status, 1)
+        help_button = ModernButton("Aide")
+        help_button.clicked.connect(self.show_help)
+        close_button = ModernButton("Fermer")
+        close_button.clicked.connect(self.close)
+        footer.addWidget(help_button)
+        footer.addWidget(close_button)
+        content.addLayout(footer)
 
     def set_mode(self, mode: SelectionMode) -> None:
         self.mode = mode
+        self.abscissa_button.setObjectName(
+            "modeActive" if mode is SelectionMode.ABSCISSA else ""
+        )
+        self.ordinate_button.setObjectName(
+            "modeActive" if mode is SelectionMode.ORDINATE else ""
+        )
+        for button in (self.abscissa_button, self.ordinate_button):
+            button.style().unpolish(button)
+            button.style().polish(button)
         if mode is SelectionMode.ABSCISSA:
-            self.status.setText("Sélection de l'abscisse : cliquez sur une grandeur du schéma.")
+            self.status.setText(
+                "Sélection de l'abscisse : cliquez sur une grandeur du schéma."
+            )
         elif mode is SelectionMode.ORDINATE:
-            self.status.setText("Sélection des ordonnées : cliquez sur une ou plusieurs grandeurs.")
+            self.status.setText(
+                "Sélection des ordonnées : cliquez sur une ou plusieurs grandeurs."
+            )
 
     def parameter_clicked(self, key: str) -> None:
         if self.mode is SelectionMode.ABSCISSA:
             self.abscissa_key = key
             self.mode = SelectionMode.NONE
-            self.status.setText(f"Abscisse sélectionnée : {self.parameter_text(key)}")
+            self.status.setText(
+                f"Abscisse sélectionnée : {self.parameter_text(key)}"
+            )
         elif self.mode is SelectionMode.ORDINATE:
             if key != self.abscissa_key and key not in self.ordinate_keys:
                 self.ordinate_keys.append(key)
             self.status.setText(f"Ordonnée ajoutée : {self.parameter_text(key)}")
         else:
-            self.status.setText(f"{PARAMETERS[key].label} — unité : {PARAMETERS[key].unit or 'sans unité'}")
+            self.status.setText(
+                f"{PARAMETERS[key].label} — unité : "
+                f"{PARAMETERS[key].unit or 'sans unité'}"
+            )
+        if self.mode is SelectionMode.NONE:
+            self.set_mode(SelectionMode.NONE)
         self._refresh()
 
     @staticmethod
     def parameter_text(key: str) -> str:
         parameter = PARAMETERS[key]
-        return f"{parameter.label} ({parameter.unit})" if parameter.unit else parameter.label
+        return (
+            f"{parameter.label} ({parameter.unit})"
+            if parameter.unit else parameter.label
+        )
 
     def remove_ordinate(self) -> None:
         row = self.table.currentRow()
         if 0 <= row < len(self.ordinate_keys):
             removed = self.ordinate_keys.pop(row)
-            self.status.setText(f"Paramètre supprimé : {self.parameter_text(removed)}")
+            self.status.setText(
+                f"Paramètre supprimé : {self.parameter_text(removed)}"
+            )
             self._refresh()
 
     def clear_measures(self) -> None:
@@ -397,8 +450,8 @@ class ChoiceWindow(QMainWindow):
     def restore_default(self) -> None:
         self.abscissa_key = "t"
         self.ordinate_keys = ["Fr", "Er", "Fc"]
-        for i, check in enumerate(self.measure_checks, start=1):
-            check.setChecked(i == 1)
+        for index, check in enumerate(self.measure_checks, start=1):
+            check.setChecked(index == 1)
         self.status.setText("Sélection par défaut restaurée.")
         self._refresh()
 
@@ -409,12 +462,18 @@ class ChoiceWindow(QMainWindow):
             "1. Cliquez sur Abscisse puis sur une grandeur.\n"
             "2. Cliquez sur Ordonnée puis sur les grandeurs à tracer.\n"
             "3. Cochez au moins une mesure.\n"
-            "4. Cliquez sur Tracer.",
+            "4. Cliquez sur Tracer les courbes.",
         )
 
     def trace(self) -> None:
-        selected = [str(i + 1) for i, check in enumerate(self.measure_checks) if check.isChecked()]
-        curves = "\n".join(f"• {self.parameter_text(key)}" for key in self.ordinate_keys)
+        selected = [
+            str(index + 1)
+            for index, check in enumerate(self.measure_checks)
+            if check.isChecked()
+        ]
+        curves = "\n".join(
+            f"• {self.parameter_text(key)}" for key in self.ordinate_keys
+        )
         QMessageBox.information(
             self,
             "Tracer",
@@ -423,7 +482,10 @@ class ChoiceWindow(QMainWindow):
         )
 
     def _refresh_trace_state(self) -> None:
-        self.trace_button.setEnabled(bool(self.ordinate_keys) and any(c.isChecked() for c in self.measure_checks))
+        self.trace_button.setEnabled(
+            bool(self.ordinate_keys)
+            and any(check.isChecked() for check in self.measure_checks)
+        )
 
     def _refresh(self) -> None:
         self.abscissa_label.setText(self.parameter_text(self.abscissa_key))
@@ -439,8 +501,8 @@ class ChoiceWindow(QMainWindow):
 
 def main() -> None:
     app = QApplication(sys.argv)
-    app.setStyle("Windows")
-    app.setFont(QFont("MS Sans Serif", 8))
+    app.setStyle("Fusion")
+    app.setFont(QFont("Segoe UI", 10))
     window = ChoiceWindow()
     window.show()
     sys.exit(app.exec())
