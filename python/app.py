@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# SP55 Modern UI — republication complète 2026-08-03
+
 import sys
 from pathlib import Path
 
