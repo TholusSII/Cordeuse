@@ -16,7 +16,9 @@ class SP55ApplicationWindow(ChoiceWindow):
         super().__init__()
         self.study: MesStudy | None = None
         self.plot_windows: list[PlotWindow] = []
-        self.status.setText("Sélectionnez les grandeurs et mesures, puis cliquez sur Tracer.")
+        self.status.setText(
+            "Sélectionnez les grandeurs et mesures, puis cliquez sur Tracer."
+        )
 
     def choose_mes_file(self) -> bool:
         initial_dir = str(Path.cwd())
@@ -55,10 +57,14 @@ class SP55ApplicationWindow(ChoiceWindow):
             if check.isChecked() and index < self.study.count
         ]
         if not selected_measurements:
-            QMessageBox.warning(self, "Tracer", "Sélectionnez au moins une mesure disponible.")
+            QMessageBox.warning(
+                self, "Tracer", "Sélectionnez au moins une mesure disponible."
+            )
             return
         if not self.ordinate_keys:
-            QMessageBox.warning(self, "Tracer", "Sélectionnez au moins une grandeur en ordonnée.")
+            QMessageBox.warning(
+                self, "Tracer", "Sélectionnez au moins une grandeur en ordonnée."
+            )
             return
         if "formula" in self.ordinate_keys or self.abscissa_key == "formula":
             QMessageBox.information(
@@ -90,8 +96,8 @@ class SP55ApplicationWindow(ChoiceWindow):
 
 def main() -> None:
     app = QApplication(sys.argv)
-    app.setStyle("Windows")
-    app.setFont(QFont("MS Sans Serif", 8))
+    app.setStyle("Fusion")
+    app.setFont(QFont("Segoe UI", 10))
     window = SP55ApplicationWindow()
     window.show()
     sys.exit(app.exec())
