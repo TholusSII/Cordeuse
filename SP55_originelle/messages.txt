@@ -1,0 +1,310 @@
+{   Traduire le fichier Actia_std.prm  }
+{   Les textes entre crochets ne doivent pas être modifiés  }
+
+{------------------------------------------------------------------------------}
+[Tfiche_a_propos]
+{0     Fichier Apropos.pas    }
+A propos...
+
+
+{------------------------------------------------------------------------------}
+[Tfiche_calcul]
+{0     Fichier Calcul.pas    }
+4
+Paramètre hors intervalle'
+Instruction processeur non définie'
+Dépassement dans une opération à virgule flottante'
+Division par zéro'
+
+
+{------------------------------------------------------------------------------}
+[Tfiche_label]
+{1     Fichier Chgtlab.pas    }
+Changement de label
+Annuler
+Aide...
+Accepter
+1
+Le label ne peut être vide...'
+
+
+{------------------------------------------------------------------------------}
+[Tfiche_echelle]
+{2     Fichier Echelle.pas    }
+Changement d'échelle
+Annuler
+Aide
+mini
+maxi
+2
+Intervalle incorrect (minimum 1.0)'
+Valeur incorrecte'
+
+
+{------------------------------------------------------------------------------}
+[Tfiche_editeur]
+{3     Fichier Editer.pas    }
+Fichier de résultats
+Police de caractères
+Impression du fichier
+Enregistrement en fichier
+Fermer
+Aide...
+4
+Ce fichier est trop volumineux pour être affiché. Souhaitez-vous utiliser l'éditeur '
+: éditeur introuvable... Définissez son chemin d'accès dans la fiche de configuration.'
+- Tableau des résultats -'
+Mesure n° '
+
+{------------------------------------------------------------------------------}
+[Tfiche_effacer]
+{4     Fichier Effacer.pas    }
+Effacer des mesures
+Accepter
+Annuler
+Aide
+2
+Êtes-vous sûr(e) ?'
+Mesure n° '
+
+{------------------------------------------------------------------------------}
+[Tfiche_formule]
+{5     Fichier Formule.pas    }
+Calculatrice
+Evaluation de l'expression
+Aide...
+Addition
+Division
+Soustraction
+Multiplication
+Parenthèse fermante
+Parenthèse ouvrante
+Cosinus ou Arccosinus
+Tangente ou Arctangente
+Puissance ou arrondi
+Logarithme népérien ou exponentielle
+valeur absolue ou valeur entière
+Pi = 3.14159...
+Seconde fonction
+Logarithme décimal
+Déplacement à droite
+Effacement à droite
+Déplacement à gauche
+Effacement à gauche
+Sinus ou Arcsinus
+Effacement de l'éditeur
+Début d'expression
+Fin d'expression
+Point décimal
+égal...
+Rappel de l'expression précédente
+3
+Erreur dans l''évaluation de l''expression...'
+Erreur de formule...'
+Paramètre'
+
+
+{------------------------------------------------------------------------------}
+[Tfiche_gestion_crb]
+{6     Fichier Gestion_crb.pas    }
+Gestion des courbes
+Valeurs numériques
+Point précédent
+Point suivant
+Premier point
+Dernier point
+Zoom plus
+Zoom moins
+Zoom fenêtre
+Zoom tout
+Zoom dynamique
+Déplacement
+Configuration
+Copier dans le presse papier
+Couleur de la courbe active
+Changement de l'échelle
+Même échelle pour toutes des courbes
+Label en X des courbes
+Label en Y de la courbe
+Calculatrice
+Fermer
+Aide...
+Impression des courbes
+ Outils
+ Valeurs
+ Zoom
+3
+Le tracé est maintenant dans le presse-papiers'
+Label en Y'
+Label en X'
+
+
+
+{------------------------------------------------------------------------------}
+[Tfiche_lissage_1_n]
+{7    Fichier lissage_1_n.pas    }
+Configuration et lissage des courbes
+ Lissage 1/n
+ Etalonnage des capteurs
+Appliquer les changements
+Valeurs par défaut (1.0 et 0.0)
+Fermer
+Aide...
+5
+Tous les paramètres'
+   Capteur'
+   Pente'
+   Origine'
+Erreur d''écriture du fichier de configuration...'
+
+
+{------------------------------------------------------------------------------}
+[Tfiche_motpasse]
+{8    Fichier Motpasse.pas    }
+Mot de passe
+Annuler
+Fermer
+Enregistrer le mot de passe
+Entrez votre mot de passe :
+1
+Mot de passe erroné...'
+
+
+{------------------------------------------------------------------------------}
+[Tfiche_parametres]
+{9    Fichier Parametres.pas    }
+Choix des paramètres
+ Mesures
+Tracé des courbes
+Edition des valeurs numériques
+Paramètre en ordonnée
+Paramètre en abscisse
+Suppression du paramètre sélectionné
+Aide...
+Annuler
+Rotation du volant
+Translation de la crémaillère
+Couple au volant
+Effort résistant
+Déplacement du tiroir
+Fréquence de rotation du régulateur
+Haute pression
+Pression du vérin
+Pression du régulateur
+Rotation du volant
+Pivotement de la roue gauche
+Pivotement de la roue droite
+Couple au volant
+Couple sur la colonne
+Couple de pivotement roue droite
+Couple de pivotement roue gauche
+Rotation moteur thermique
+Vitesse du véhicule
+Puissance électrique
+Effort à la pédale
+Pression d'assistance
+Dépression
+Pression hydraulique du frein à tambour
+Pression hydraulique du frein à disque
+Tension de corde
+Tension électrique
+Déplacement du chariot
+Ecrasement du ressort
+Formule
+Fréquence de rotation du réducteur
+Effort du ressort
+Vitesse du chariot
+Fréquence de rotation du moteur
+Rotation du moteur
+Rotation du réducteur
+Intensité du courant
+Temps
+17
+Vitesse  réducteur'
+(tr/min)'
+Vitesse  moteur'
+(tr/min)'
+Angle moteur'
+(Degrés)'
+Effort ressort'
+(N)'
+Vitesse chariot'
+(mm/s)'
+Déplacement chariot'
+(mm)'
+Paramètre'
+Mini'
+Maxi'
+Temps (s)'
+Temps'
+
+
+
+{------------------------------------------------------------------------------}
+[Tfiche_principale]
+{10    Fichier Principal.pas    }
+Commencer une nouvelle étude
+Ouvrir un fichier de mesures
+Enregistrer les mesures
+Effacer une mesure
+Effectuer une mesure
+Courbes de résultats
+Quitter l'application
+&Fichier
+&Nouveau
+&Ouvrir
+&Enregistrer
+Enregistrer &sous
+&Quitter
+&Effacer
+&Mesures
+&Courbes
+&Aide
+&Index
+&A propos
+36
+Le fichier de configuration '
+ est introuvable. Voulez-vous l'installer (Ok) ou quitter l'application (Annuler)?'
+Erreur d'accès au fichier de configuration... Souhaitez-vous reprendre la configuration par défaut (Oui) ou abandonner (Annuler)?'
+Copie de fichier impossible...'
+Configuration par défaut introuvable. Procédez à la réinstallation du logiciel...'
+[Communication port RS 232]'
+Fichier de configuration incorrect'
+[Mot de passe]'
+[Capteurs]'
+[Capteur '
+Vitesse réducteur'
+(tr/min)'
+Vitesse moteur'
+Angle moteur'
+(°)'
+Effort ressort'
+(N)'
+Vitesse chariot'
+(mm/s)'
+Translation chariot'
+(mm)'
+Vous devez d'abord effectuer une mesure ou ouvrir un fichier...'
+Fichier de paramètres incorrect'
+[Produit]'
+[Auteurs]'
+[Commentaire]'
+[N° version]'
+Voulez vous sauvegardez les dernières mesures ?'
+Erreur d'accès au fichier'
+Pas de mesure à sauvegarder...'
+Erreur d'écriture du fichier '
+Résultats des mesures inexploitables '
+Mesure n° '
+Nombre maximum de mesures atteint ('
+Les mesures en cours seront supprimées. Confirmez (Ok) ou annulez...'
+Pas de mesure en cours...'
+
+{------------------------------------------------------------------------------}
+[Tfiche_tracecrb]
+{11     Fichier Tracecrb.pas    }
+Courbes de résultats
+2
+ / Mesure n° '
+N° point'
+
