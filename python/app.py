@@ -139,11 +139,15 @@ class FormulaDock(QDockWidget):
 
 class SP55ApplicationWindow(ChoiceWindow):
     def __init__(self) -> None:
-        super().__init__()
-        self.study: MesStudy | None = None
-        self.plot_windows: list[PlotWindow] = []
+        # Ces attributs doivent exister avant ChoiceWindow.__init__(), car celui-ci
+        # appelle _refresh(), qui utilise la méthode redéfinie parameter_text().
         self.formulas: dict[str, FormulaCurve] = {}
         self.formula_mode = False
+        self.study: MesStudy | None = None
+        self.plot_windows: list[PlotWindow] = []
+
+        super().__init__()
+
         self.formula_dock = FormulaDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.formula_dock)
         self.formula_dock.hide()
