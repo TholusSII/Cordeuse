@@ -12,8 +12,6 @@ def _find_program_dir() -> Path:
     """Localise le dossier contenant app.py, y compris avec Run Module d'IDLE."""
     candidates: list[Path] = []
 
-    # IDLE peut exécuter le module avec exec() sans définir __file__, mais le
-    # chemin réel reste présent dans le code compilé et apparaît au traceback.
     frame = inspect.currentframe()
     if frame is not None:
         code_filename = frame.f_code.co_filename
@@ -29,9 +27,6 @@ def _find_program_dir() -> Path:
 
     current = Path.cwd().resolve()
     candidates.extend((current, current / "python"))
-
-    # Emplacement standard du dépôt utilisé sur cette machine, uniquement en
-    # dernier recours. Il n'est retenu que si app.py y existe réellement.
     candidates.append(Path(r"C:\github\cordeuse\python"))
 
     checked: list[Path] = []
@@ -59,14 +54,16 @@ os.chdir(PROGRAM_DIR)
 from app import SP55ApplicationWindow, main
 from calibration_integration import install_calibration
 from dual_serial_integration import install_dual_serial
+from machine_diagram import MachineDiagram
 from measurement_integration import install_measurement_window
 from ui_choix_parametres import ChoiceWindow
+from visual_fixes import install_visual_fixes
 
 
-# L'ordre est important :
-# 1. installation du gestionnaire des deux ports série ;
-# 2. branchement de la fenêtre de mesure ;
-# 3. chargement automatique de sp55.cfg et écran de calibration.
+# Les corrections visuelles sont installées avant la création de la fenêtre.
+install_visual_fixes(ChoiceWindow, MachineDiagram)
+
+# L'ordre est important : série, mesures, puis calibration.
 install_dual_serial(SP55ApplicationWindow, ChoiceWindow)
 install_measurement_window(SP55ApplicationWindow)
 install_calibration(SP55ApplicationWindow)
