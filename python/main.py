@@ -2,31 +2,44 @@
 
 from __future__ import annotations
 
+import inspect
 import os
 import sys
 from pathlib import Path
 
 
 def _find_program_dir() -> Path:
-    """Localise le dossier contenant app.py, même quand IDLE ne définit pas __file__."""
+    """Localise le dossier contenant app.py, y compris avec Run Module d'IDLE."""
     candidates: list[Path] = []
+
+    # IDLE peut exécuter le module avec exec() sans définir __file__, mais le
+    # chemin réel reste présent dans le code compilé et apparaît au traceback.
+    frame = inspect.currentframe()
+    if frame is not None:
+        code_filename = frame.f_code.co_filename
+        if code_filename and code_filename not in {"<string>", "<stdin>"}:
+            candidates.append(Path(code_filename).resolve().parent)
 
     file_name = globals().get("__file__")
     if file_name:
         candidates.append(Path(str(file_name)).resolve().parent)
 
-    if sys.argv and sys.argv[0]:
+    if sys.argv and sys.argv[0] and sys.argv[0] not in {"-c", ""}:
         candidates.append(Path(sys.argv[0]).resolve().parent)
 
     current = Path.cwd().resolve()
     candidates.extend((current, current / "python"))
 
-    # Supprime les doublons tout en conservant l'ordre.
-    checked: set[Path] = set()
+    # Emplacement standard du dépôt utilisé sur cette machine, uniquement en
+    # dernier recours. Il n'est retenu que si app.py y existe réellement.
+    candidates.append(Path(r"C:\github\cordeuse\python"))
+
+    checked: list[Path] = []
     for candidate in candidates:
+        candidate = candidate.resolve()
         if candidate in checked:
             continue
-        checked.add(candidate)
+        checked.append(candidate)
         if (candidate / "app.py").is_file():
             return candidate
 
