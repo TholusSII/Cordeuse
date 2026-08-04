@@ -1,5 +1,19 @@
 # SP55 Modern UI — double liaison série, mesures, formules et calibration
 
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+
+# Rend les imports locaux fiables, y compris lorsque main.py est lancé depuis
+# IDLE, un raccourci Windows ou un autre dossier de travail.
+PROGRAM_DIR = Path(__file__).resolve().parent
+if str(PROGRAM_DIR) not in sys.path:
+    sys.path.insert(0, str(PROGRAM_DIR))
+os.chdir(PROGRAM_DIR)
+
 from app import SP55ApplicationWindow, main
 from calibration_integration import install_calibration
 from dual_serial_integration import install_dual_serial
