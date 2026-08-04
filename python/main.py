@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 # SP55 Modern UI — architecture double liaison série et calibration
 from app import SP55ApplicationWindow, main
 from calibration_integration import install_calibration
@@ -13,6 +14,13 @@ from ui_choix_parametres import ChoiceWindow
 install_dual_serial(SP55ApplicationWindow, ChoiceWindow)
 install_measurement_window(SP55ApplicationWindow)
 install_calibration(SP55ApplicationWindow)
+=======
+# SP55 Modern UI — republication complète 2026-08-03
+import os
+os.chdir(r"C:\GitHub\Cordeuse\python")
+
+from app import main
+>>>>>>> Stashed changes
 
 
 if __name__ == "__main__":
