@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
 
 import serial
-from PySide6.QtCore import QObject, QSettings, Signal
+from PySide6.QtCore import QObject, QSettings, QTimer, Signal
 from serial.tools import list_ports
 
 from serial_controller import CommandSettings
@@ -20,27 +19,26 @@ class SerialEndpoint:
 
 
 class DualSerialManager(QObject):
-    """Gère séparément le boîtier SP55 et l'Arduino Mega.
-
-    Le protocole du boîtier de mesure est volontairement laissé hors de cette
-    classe : elle fournit les octets bruts à un futur décodeur. La liaison
-    Arduino dispose déjà d'un encodage de commande texte, mais celui-ci reste
-    centralisé et pourra être remplacé lorsque le firmware sera figé.
-    """
+    """Gère les deux ports série et partage une connexion Arduino unique."""
 
     measurement_state_changed = Signal(bool, str)
     control_state_changed = Signal(bool, str)
     measurement_bytes_received = Signal(bytes)
     control_bytes_received = Signal(bytes)
+    control_line_received = Signal(str)
     communication_error = Signal(str, str)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.measurement = SerialEndpoint(baudrate=9600)
-        self.control = SerialEndpoint(baudrate=115200)
+        self.control = SerialEndpoint(baudrate=115200, timeout=0.0)
         self._measurement_serial: serial.Serial | None = None
         self._control_serial: serial.Serial | None = None
+        self._control_rx_buffer = bytearray()
         self._settings = QSettings("TholusSII", "CordeuseSP55")
+        self._control_timer = QTimer(self)
+        self._control_timer.setInterval(15)
+        self._control_timer.timeout.connect(self._poll_control)
         self.load_settings()
 
     @staticmethod
@@ -52,13 +50,9 @@ class DualSerialManager(QObject):
 
     def load_settings(self) -> None:
         self.measurement.port = str(self._settings.value("serial/measurement_port", ""))
-        self.measurement.baudrate = int(
-            self._settings.value("serial/measurement_baud", 9600)
-        )
+        self.measurement.baudrate = int(self._settings.value("serial/measurement_baud", 9600))
         self.control.port = str(self._settings.value("serial/control_port", ""))
-        self.control.baudrate = int(
-            self._settings.value("serial/control_baud", 115200)
-        )
+        self.control.baudrate = int(self._settings.value("serial/control_baud", 115200))
 
     def save_settings(self) -> None:
         self._settings.setValue("serial/measurement_port", self.measurement.port)
@@ -75,8 +69,13 @@ class DualSerialManager(QObject):
 
     def configure_control(self, port: str, baudrate: int) -> None:
         self._validate_pair(port, self.measurement.port, "Arduino Mega")
-        self.control.port = port.strip()
-        self.control.baudrate = int(baudrate)
+        new_port = port.strip()
+        new_baud = int(baudrate)
+        changed = new_port != self.control.port or new_baud != self.control.baudrate
+        if changed:
+            self.close_control()
+        self.control.port = new_port
+        self.control.baudrate = new_baud
         self.save_settings()
 
     @staticmethod
@@ -127,59 +126,87 @@ class DualSerialManager(QObject):
             self.measurement_bytes_received.emit(payload)
         return payload
 
-    def send_control_command(self, settings: CommandSettings) -> str:
-        """Envoie une commande à l'Arduino sur sa liaison dédiée."""
+    @property
+    def control_is_open(self) -> bool:
+        return bool(self._control_serial and self._control_serial.is_open)
+
+    def open_control(self) -> serial.Serial:
+        """Ouvre une seule fois le port Arduino et le conserve pour toute l'application."""
+        if self.control_is_open:
+            return self._control_serial  # type: ignore[return-value]
         if not self.control.port:
             raise ValueError("Aucun port n'est configuré pour l'Arduino Mega.")
-        payload = settings.encode()
         try:
-            with serial.Serial(
+            self._control_serial = serial.Serial(
                 self.control.port,
                 self.control.baudrate,
-                timeout=self.control.timeout,
-                write_timeout=self.control.timeout,
-            ) as connection:
-                self.control_state_changed.emit(True, self.control.port)
-                connection.reset_input_buffer()
-                connection.write(payload)
-                connection.flush()
-                answer_bytes = connection.readline()
+                timeout=0,
+                write_timeout=1.0,
+            )
+            self._control_serial.reset_input_buffer()
         except (OSError, serial.SerialException) as exc:
+            self._control_serial = None
             self.control_state_changed.emit(False, str(exc))
             self.communication_error.emit("control", str(exc))
             raise
-        finally:
-            self.control_state_changed.emit(False, "Port libéré")
+        self._control_rx_buffer.clear()
+        self._control_timer.start()
+        self.control_state_changed.emit(True, self.control.port)
+        return self._control_serial
 
-        if answer_bytes:
-            self.control_bytes_received.emit(answer_bytes)
-        return answer_bytes.decode("utf-8", errors="replace").strip()
+    def close_control(self) -> None:
+        self._control_timer.stop()
+        if self._control_serial:
+            try:
+                self._control_serial.close()
+            finally:
+                self._control_serial = None
+        self._control_rx_buffer.clear()
+        self.control_state_changed.emit(False, "Déconnecté")
 
-    def poll_control_once(self, callback: Callable[[bytes], None] | None = None) -> bytes:
-        """Lit une trame complémentaire émise spontanément par l'Arduino.
-
-        Cette méthode pourra être appelée par un QTimer lorsque le format des
-        mesures Arduino sera connu.
-        """
-        if not self.control.port:
-            return b""
+    def write_control(self, payload: bytes) -> None:
+        connection = self.open_control()
         try:
-            with serial.Serial(
-                self.control.port,
-                self.control.baudrate,
-                timeout=0.05,
-            ) as connection:
-                payload = connection.read(max(1, connection.in_waiting))
-        except (OSError, serial.SerialException):
-            return b""
-        if payload:
-            self.control_bytes_received.emit(payload)
-            if callback:
-                callback(payload)
-        return payload
+            connection.write(payload)
+            connection.flush()
+        except (OSError, serial.SerialException) as exc:
+            self.communication_error.emit("control", str(exc))
+            self.close_control()
+            raise
+
+    def write_control_line(self, line: str) -> None:
+        self.write_control((line.rstrip("\r\n") + "\n").encode("utf-8"))
+
+    def send_control_command(self, settings: CommandSettings) -> str:
+        """Envoie BO/BF/Constructeur sur la connexion Arduino partagée."""
+        self.write_control(settings.encode())
+        return "Commande envoyée sur la connexion Arduino partagée."
+
+    def _poll_control(self) -> None:
+        connection = self._control_serial
+        if not connection or not connection.is_open:
+            self._control_timer.stop()
+            return
+        try:
+            waiting = connection.in_waiting
+            if not waiting:
+                return
+            payload = connection.read(waiting)
+        except (OSError, serial.SerialException) as exc:
+            self.communication_error.emit("control", str(exc))
+            self.close_control()
+            return
+        if not payload:
+            return
+        self.control_bytes_received.emit(payload)
+        self._control_rx_buffer.extend(payload)
+        while b"\n" in self._control_rx_buffer:
+            raw, _, remainder = self._control_rx_buffer.partition(b"\n")
+            self._control_rx_buffer = bytearray(remainder)
+            line = raw.decode("utf-8", errors="replace").strip()
+            if line:
+                self.control_line_received.emit(line)
 
     def close_all(self) -> None:
         self.close_measurement()
-        if self._control_serial:
-            self._control_serial.close()
-            self._control_serial = None
+        self.close_control()
