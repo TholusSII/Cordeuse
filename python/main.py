@@ -55,6 +55,7 @@ from app import SP55ApplicationWindow, main
 from arduino_integration import install_arduino_window
 from calibration_integration import install_calibration
 from dual_serial_integration import install_dual_serial
+from file_actions_integration import install_file_actions
 from machine_diagram import MachineDiagram
 from measurement_integration import install_measurement_window
 from ui_choix_parametres import ChoiceWindow
@@ -68,6 +69,7 @@ install_dual_serial(SP55ApplicationWindow, ChoiceWindow)
 install_measurement_window(SP55ApplicationWindow)
 install_calibration(SP55ApplicationWindow)
 install_arduino_window(SP55ApplicationWindow)
+install_file_actions(SP55ApplicationWindow)
 
 
 if __name__ == "__main__":
