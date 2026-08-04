@@ -1,4 +1,4 @@
-# SP55 Modern UI — double liaison série, mesures, formules et calibration
+# SP55 Modern UI — double liaison série, mesures, formules, calibration et Arduino
 
 from __future__ import annotations
 
@@ -52,6 +52,7 @@ if str(PROGRAM_DIR) not in sys.path:
 os.chdir(PROGRAM_DIR)
 
 from app import SP55ApplicationWindow, main
+from arduino_integration import install_arduino_window
 from calibration_integration import install_calibration
 from dual_serial_integration import install_dual_serial
 from machine_diagram import MachineDiagram
@@ -60,13 +61,13 @@ from ui_choix_parametres import ChoiceWindow
 from visual_fixes import install_visual_fixes
 
 
-# Les corrections visuelles sont installées avant la création de la fenêtre.
 install_visual_fixes(ChoiceWindow, MachineDiagram)
 
-# L'ordre est important : série, mesures, puis calibration.
+# Le gestionnaire des deux ports doit exister avant les fenêtres qui l'utilisent.
 install_dual_serial(SP55ApplicationWindow, ChoiceWindow)
 install_measurement_window(SP55ApplicationWindow)
 install_calibration(SP55ApplicationWindow)
+install_arduino_window(SP55ApplicationWindow)
 
 
 if __name__ == "__main__":
