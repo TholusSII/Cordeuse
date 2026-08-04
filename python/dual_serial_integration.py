@@ -12,9 +12,12 @@ def install_dual_serial(application_class, choice_window_class) -> None:
     original_app_init = application_class.__init__
 
     def app_init(self, *args, **kwargs):
-        # Créé avant l'interface afin que toutes les fenêtres filles puissent le retrouver.
-        self.serial_manager = DualSerialManager(self)
+        # Le gestionnaire doit exister avant ChoiceWindow.__init__(), mais la
+        # fenêtre n'est pas encore un QObject initialisé : le parent est donc
+        # affecté juste après l'appel au constructeur d'origine.
+        self.serial_manager = DualSerialManager()
         original_app_init(self, *args, **kwargs)
+        self.serial_manager.setParent(self)
         self.serial_configuration_dialog = None
         for button in self.findChildren(QPushButton):
             if button.text() == "⚙":
