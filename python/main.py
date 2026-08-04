@@ -56,6 +56,7 @@ from arduino_integration import install_arduino_window
 from calibration_integration import install_calibration
 from dual_serial_integration import install_dual_serial
 from file_actions_integration import install_file_actions
+from logo_integration import install_logo
 from machine_diagram import MachineDiagram
 from measurement_integration import install_measurement_window
 from ui_choix_parametres import ChoiceWindow
@@ -63,6 +64,7 @@ from visual_fixes import install_visual_fixes
 
 
 install_visual_fixes(ChoiceWindow, MachineDiagram)
+install_logo(ChoiceWindow)
 
 # Le gestionnaire des deux ports doit exister avant les fenêtres qui l'utilisent.
 install_dual_serial(SP55ApplicationWindow, ChoiceWindow)
