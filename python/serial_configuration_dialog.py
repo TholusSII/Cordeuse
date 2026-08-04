@@ -27,8 +27,18 @@ class SerialConfigurationDialog(QDialog):
             "QGroupBox{background:white;border:1px solid #dfe6ef;border-radius:12px;"
             "margin-top:14px;padding:16px 12px 12px 12px;font-weight:600}"
             "QGroupBox::title{subcontrol-origin:margin;left:14px;padding:0 6px}"
-            "QComboBox{background:white;border:1px solid #d8dee9;border-radius:8px;padding:7px}"
-            "QPushButton{background:white;border:1px solid #d8dee9;border-radius:8px;padding:8px 12px}"
+            "QLabel{color:#172033}"
+            "QComboBox{background:#ffffff;color:#172033;border:1px solid #d8dee9;"
+            "border-radius:8px;padding:7px;padding-right:30px;selection-background-color:#2563eb;"
+            "selection-color:#ffffff}"
+            "QComboBox:hover{border-color:#9bbcf2}"
+            "QComboBox:focus{border:1px solid #2563eb}"
+            "QComboBox::drop-down{border:0;width:28px}"
+            "QComboBox QAbstractItemView{background:#ffffff;color:#172033;"
+            "border:1px solid #d8dee9;selection-background-color:#2563eb;"
+            "selection-color:#ffffff;outline:0;padding:2px}"
+            "QPushButton{background:white;color:#172033;border:1px solid #d8dee9;"
+            "border-radius:8px;padding:8px 12px}"
             "QPushButton#primary{background:#2563eb;color:white;border:none;font-weight:600}"
         )
         self._build_ui()
@@ -84,9 +94,11 @@ class SerialConfigurationDialog(QDialog):
         layout.addWidget(description_label, 0, 0, 1, 3)
         layout.addWidget(QLabel("Port"), 1, 0)
         port = QComboBox()
+        port.setMinimumWidth(260)
         layout.addWidget(port, 1, 1, 1, 2)
         layout.addWidget(QLabel("Vitesse"), 2, 0)
         baud = QComboBox()
+        baud.setMinimumWidth(160)
         for value in (1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200):
             baud.addItem(str(value), value)
         layout.addWidget(baud, 2, 1)
