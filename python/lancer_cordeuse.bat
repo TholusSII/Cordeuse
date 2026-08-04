@@ -12,6 +12,6 @@ if not exist ".venv\Scripts\python.exe" (
     call .venv\Scripts\activate.bat
 )
 
-python main.py
-if errorlevel 1 pause
+python -c "from app_icon import ensure_icon_files; ensure_icon_files()"
+start "SP55" /B .venv\Scripts\pythonw.exe main.py
 endlocal
