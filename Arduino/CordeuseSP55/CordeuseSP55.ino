@@ -1,8 +1,9 @@
-#include "../EntreesSorties.h"
-#include "../PID_v1.h"
-#include "../HX711.h"
-#include "../LiquidCrystal.h"
-#include "../Keypad.h"
+#include "EntreesSorties.h"
+#include "PID_v1.h"
+#include "HX711.h"
+#include "LiquidCrystal.h"
+#include "Keypad.h"
+
 
 // Firmware de commande SP55 pour Arduino Mega.
 // Protocole série ASCII à 115200 bauds, une trame par ligne.
