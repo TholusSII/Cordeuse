@@ -9,7 +9,7 @@ from mes_reader import read_mes
 
 
 def install_measurement_window(application_class) -> None:
-    """Ajoute la fenêtre d'acquisition sans coupler l'UI principale au protocole série."""
+    """Ajoute la fenêtre d'acquisition sur la liaison dédiée au boîtier SP55."""
     original_init = application_class.__init__
 
     def patched_init(self, *args, **kwargs):
@@ -25,6 +25,20 @@ def install_measurement_window(application_class) -> None:
 
 def open_measurement(owner) -> None:
     window = MeasurementWindow(owner)
+    window.serial_manager = getattr(owner, "serial_manager", None)
+    if window.serial_manager is not None:
+        endpoint = window.serial_manager.measurement
+        window.refresh_ports()
+        index = window.port.findText(endpoint.port)
+        if index >= 0:
+            window.port.setCurrentIndex(index)
+        window.baud.setCurrentText(str(endpoint.baudrate))
+        window.setWindowTitle("Réalisation des mesures — boîtier SP55")
+        window.log.appendPlainText(
+            f"Liaison dédiée au boîtier de mesure : "
+            f"{endpoint.port or 'non configurée'} / {endpoint.baudrate} bauds"
+        )
+
     owner.measurement_window = window
     window.measurement_saved.connect(lambda path: load_saved_measurement(owner, path))
     window.show()
