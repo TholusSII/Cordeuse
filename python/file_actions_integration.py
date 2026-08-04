@@ -17,6 +17,7 @@ def install_file_actions(application_class) -> None:
     def patched_init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
         _connect_buttons(self)
+        _set_no_study_measure_state(self)
 
     application_class.__init__ = patched_init
 
@@ -61,6 +62,16 @@ def _connect_buttons(owner) -> None:
         clear_button.setToolTip("Fermer et effacer la mesure actuellement chargée")
 
 
+def _set_no_study_measure_state(owner) -> None:
+    """Sans fichier MES, seule la mesure n°1 reste sélectionnable."""
+    if getattr(owner, "study", None) is not None:
+        return
+    for index, check in enumerate(owner.measure_checks, start=1):
+        check.setEnabled(index == 1)
+        check.setChecked(index == 1)
+    owner._refresh_trace_state()
+
+
 def open_mes(owner) -> None:
     if owner.choose_mes_file():
         owner._refresh()
@@ -69,6 +80,7 @@ def open_mes(owner) -> None:
 def clear_current_measurement(owner) -> None:
     study = getattr(owner, "study", None)
     if study is None:
+        _set_no_study_measure_state(owner)
         owner.status.setText("Aucune mesure n'est actuellement chargée.")
         return
 
@@ -81,9 +93,7 @@ def clear_current_measurement(owner) -> None:
         owner.plot_windows.clear()
 
     owner.study = None
-    for index, check in enumerate(owner.measure_checks, start=1):
-        check.setEnabled(True)
-        check.setChecked(index == 1)
+    _set_no_study_measure_state(owner)
 
     owner.status.setText("Mesure effacée. Ouvrez un nouveau fichier .mes pour continuer.")
     owner._refresh()
