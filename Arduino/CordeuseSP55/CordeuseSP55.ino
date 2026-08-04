@@ -1,6 +1,8 @@
 #include "../EntreesSorties.h"
 #include "../PID_v1.h"
 #include "../HX711.h"
+#include "../LiquidCrystal.h"
+#include "../Keypad.h"
 
 // Firmware de commande SP55 pour Arduino Mega.
 // Protocole série ASCII à 115200 bauds, une trame par ligne.
@@ -19,6 +21,23 @@ static float effortScale = 2280.0f;
 static float currentScale = 1.0f;
 static float positionScale = 1.0f;
 static float cordPotScale = 1.0f;
+
+// -----------------------------------------------------------------------------
+// Clavier 4 x 5 et écran LCD 16 x 2 d'origine
+// -----------------------------------------------------------------------------
+const byte ROWS = 4;
+const byte COLS = 5;
+char keys[ROWS][COLS] = {
+  {'.', '7', '8', '9', 'L'},
+  {'+', '4', '5', '6', 'T'},
+  {'-', '1', '2', '3', '.'},
+  {'.', 'V', '0', '.', '.'}
+};
+byte rowPins[ROWS] = {LINE1, LINE2, LINE3, LINE4};
+byte colPins[COLS] = {COL1, COL2, COL3, COL4, COL5};
+
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+LiquidCrystal lcd(AFFRS, AFFRW, AFFE, AFFDB4, AFFDB5, AFFDB6, AFFDB7);
 
 class DebouncedInput {
  public:
@@ -66,7 +85,13 @@ class DebouncedInput {
 };
 
 enum ControlMode : uint8_t { MODE_STOP, MODE_BO, MODE_BF, MODE_CONSTRUCTOR };
-enum MachineState : uint8_t { STATE_IDLE, STATE_PULLING, STATE_RETURNING, STATE_BRAKING, STATE_FAULT };
+enum MachineState : uint8_t {
+  STATE_IDLE,
+  STATE_PULLING,
+  STATE_RETURNING,
+  STATE_BRAKING,
+  STATE_FAULT
+};
 
 DebouncedInput endMax(FinCoursMaxi);
 DebouncedInput endMin(FinCoursMini);
@@ -89,7 +114,7 @@ unsigned long lastStreamMs = 0;
 unsigned long brakeStartedMs = 0;
 
 float effort = 0.0f;
-int effortRaw = 0;
+long effortRaw = 0;
 int currentRaw = 0;
 int positionRaw = 0;
 int cordPotRaw = 0;
@@ -97,6 +122,9 @@ int appliedPwm = 0;
 
 char commandBuffer[180];
 uint8_t commandLength = 0;
+
+ControlMode lastDisplayedMode = MODE_STOP;
+MachineState lastDisplayedState = STATE_FAULT;
 
 const char *modeName(ControlMode mode) {
   switch (mode) {
@@ -117,6 +145,56 @@ const char *stateName(MachineState state) {
   }
 }
 
+const char *lcdModeName(ControlMode mode) {
+  switch (mode) {
+    case MODE_BO: return "Boucle ouverte";
+    case MODE_BF: return "Boucle fermee";
+    case MODE_CONSTRUCTOR: return "Constructeur";
+    default: return "Mode arret";
+  }
+}
+
+const char *lcdStateName(MachineState state) {
+  switch (state) {
+    case STATE_PULLING: return "Essai en cours";
+    case STATE_RETURNING: return "Retour chariot";
+    case STATE_BRAKING: return "Freinage";
+    case STATE_FAULT: return "DEFAUT";
+    default: return "Pret";
+  }
+}
+
+void printLcdLine(uint8_t row, const char *text) {
+  lcd.setCursor(0, row);
+  uint8_t index = 0;
+  while (text[index] != '\0' && index < 16) {
+    lcd.print(text[index]);
+    ++index;
+  }
+  while (index < 16) {
+    lcd.print(' ');
+    ++index;
+  }
+}
+
+void refreshLcd(bool force = false) {
+  if (!force && controlMode == lastDisplayedMode && machineState == lastDisplayedState) {
+    return;
+  }
+  printLcdLine(0, lcdModeName(controlMode));
+  printLcdLine(1, lcdStateName(machineState));
+  lastDisplayedMode = controlMode;
+  lastDisplayedState = machineState;
+}
+
+void showWelcome() {
+  lcd.clear();
+  printLcdLine(0, "Cordeuse SP55");
+  printLcdLine(1, "Bienvenue");
+  delay(1500);
+  refreshLcd(true);
+}
+
 void stopMotor() {
   analogWrite(MLI, 0);
   appliedPwm = 0;
@@ -132,6 +210,7 @@ void driveMotor(bool pullingDirection, int pwm) {
 void startPulling() {
   if (controlMode == MODE_STOP || endMax.active()) return;
   machineState = STATE_PULLING;
+  refreshLcd();
   Serial.println(F("EVENT;TYPE=CYCLE_START"));
 }
 
@@ -139,10 +218,12 @@ void startReturn() {
   stopMotor();
   if (endMin.active()) {
     machineState = STATE_IDLE;
+    refreshLcd();
     Serial.println(F("EVENT;TYPE=CYCLE_END"));
     return;
   }
   machineState = STATE_RETURNING;
+  refreshLcd();
   Serial.println(F("EVENT;TYPE=RETURN_START"));
 }
 
@@ -150,6 +231,7 @@ void startBrake() {
   machineState = STATE_BRAKING;
   brakeStartedMs = millis();
   driveMotor(true, BRAKE_PWM);
+  refreshLcd();
 }
 
 void readSensors() {
@@ -157,8 +239,7 @@ void readSensors() {
   positionRaw = analogRead(CaptPosition);
   cordPotRaw = analogRead(CaptCordePot);
   if (loadCell.is_ready()) {
-    long raw = loadCell.read();
-    effortRaw = (int)constrain(raw, -2147483647L, 2147483647L);
+    effortRaw = loadCell.read();
     effort = loadCell.get_units(1);
   }
   pidInput = effort;
@@ -208,6 +289,7 @@ void updateMachine(unsigned long now) {
       if (now - brakeStartedMs >= BRAKE_TIME_MS) {
         stopMotor();
         machineState = STATE_IDLE;
+        refreshLcd();
         Serial.println(F("EVENT;TYPE=CYCLE_END"));
       }
       break;
@@ -218,10 +300,56 @@ void updateMachine(unsigned long now) {
   }
 }
 
+void cycleLocalMode() {
+  if (machineState != STATE_IDLE) return;
+  if (controlMode == MODE_BO) controlMode = MODE_BF;
+  else if (controlMode == MODE_BF) controlMode = MODE_CONSTRUCTOR;
+  else controlMode = MODE_BO;
+  refreshLcd();
+  Serial.print(F("EVENT;TYPE=LOCAL_MODE;MODE="));
+  Serial.println(modeName(controlMode));
+}
+
+void handleKeypad() {
+  char key = keypad.getKey();
+  if (!key) return;
+
+  switch (key) {
+    case 'L':
+      cycleLocalMode();
+      break;
+    case 'V':
+      if (machineState == STATE_IDLE) startPulling();
+      else if (machineState == STATE_PULLING) startReturn();
+      break;
+    case 'T':
+      if (machineState == STATE_IDLE) {
+        printLcdLine(1, "Tare en cours");
+        loadCell.tare(10);
+        refreshLcd(true);
+        Serial.println(F("EVENT;TYPE=TARE"));
+      }
+      break;
+    case '+':
+      pidSetpoint = min(300.0, pidSetpoint + 1.0);
+      Serial.print(F("EVENT;TYPE=SETPOINT;VALUE="));
+      Serial.println(pidSetpoint, 1);
+      break;
+    case '-':
+      pidSetpoint = max(0.0, pidSetpoint - 1.0);
+      Serial.print(F("EVENT;TYPE=SETPOINT;VALUE="));
+      Serial.println(pidSetpoint, 1);
+      break;
+    default:
+      break;
+  }
+}
+
 void sendTelemetry(unsigned long now) {
   Serial.print(F("MEAS;t=")); Serial.print(now);
   Serial.print(F(";mode=")); Serial.print(modeName(controlMode));
   Serial.print(F(";state=")); Serial.print(stateName(machineState));
+  Serial.print(F(";setpoint=")); Serial.print(pidSetpoint, 4);
   Serial.print(F(";effort=")); Serial.print(effort, 4);
   Serial.print(F(";effort_raw=")); Serial.print(effortRaw);
   Serial.print(F(";current_raw=")); Serial.print(currentRaw);
@@ -261,7 +389,7 @@ void handleCommand(char *line) {
     return;
   }
   if (strcmp(line, "GET;CAPS") == 0) {
-    Serial.println(F("CAPS;MODES=STOP,BO,BF,CONSTRUCTEUR;MEAS=effort,effort_raw,current,current_raw,position,position_raw,corde,corde_raw,fc_min,fc_max,bp,pwm"));
+    Serial.println(F("CAPS;MODES=STOP,BO,BF,CONSTRUCTEUR;MEAS=setpoint,effort,effort_raw,current,current_raw,position,position_raw,corde,corde_raw,fc_min,fc_max,bp,pwm"));
     return;
   }
   if (strcmp(line, "GET;STATE") == 0) {
@@ -275,7 +403,11 @@ void handleCommand(char *line) {
     startReturn(); acknowledge(F("STOP")); return;
   }
   if (strcmp(line, "TARE") == 0) {
-    loadCell.tare(10); acknowledge(F("TARE")); return;
+    printLcdLine(1, "Tare en cours");
+    loadCell.tare(10);
+    refreshLcd(true);
+    acknowledge(F("TARE"));
+    return;
   }
   if (strncmp(line, "STREAM;", 7) == 0) {
     streaming = fieldLong(line, "ON", streaming ? 1 : 0) != 0;
@@ -305,6 +437,7 @@ void handleCommand(char *line) {
     kd = fieldFloat(line, "KD", kd);
     forcePid.SetTunings(kp, ki, kd);
     if (controlMode == MODE_STOP && machineState == STATE_PULLING) startReturn();
+    refreshLcd();
     Serial.print(F("ACK;CMD;MODE=")); Serial.print(modeName(controlMode));
     Serial.print(F(";KP=")); Serial.print(kp, 4);
     Serial.print(F(";KI=")); Serial.print(ki, 4);
@@ -334,6 +467,7 @@ void pollSerial() {
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
+
   pinMode(MLI, OUTPUT);
   pinMode(SENS, OUTPUT);
   pinMode(CaptCourant, INPUT);
@@ -342,6 +476,12 @@ void setup() {
   pinMode(AlimCordePot, OUTPUT);
   digitalWrite(AlimCordePot, HIGH);
   stopMotor();
+
+  pinMode(AFFCONTRASTE, OUTPUT);
+  analogWrite(AFFCONTRASTE, 50);
+  lcd.begin(16, 2);
+  keypad.setDebounceTime(DEBOUNCE_MS);
+  keypad.setHoldTime(500);
 
   endMax.begin();
   endMin.begin();
@@ -355,17 +495,22 @@ void setup() {
   forcePid.SetSampleTime(CONTROL_PERIOD_MS);
   forcePid.SetMode(AUTOMATIC);
 
+  showWelcome();
   Serial.println(F("HELLO;DEVICE=SP55_ARDUINO_MEGA;PROTO=1;BAUD=115200"));
 }
 
 void loop() {
   unsigned long now = millis();
   pollSerial();
+  handleKeypad();
+
   if (now - lastControlMs >= CONTROL_PERIOD_MS) {
     lastControlMs = now;
     readSensors();
     updateMachine(now);
+    refreshLcd();
   }
+
   if (streaming && now - lastStreamMs >= streamPeriodMs) {
     lastStreamMs = now;
     sendTelemetry(now);
