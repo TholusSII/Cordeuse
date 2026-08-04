@@ -7,9 +7,38 @@ import sys
 from pathlib import Path
 
 
-# Rend les imports locaux fiables, y compris lorsque main.py est lancé depuis
-# IDLE, un raccourci Windows ou un autre dossier de travail.
-PROGRAM_DIR = Path(__file__).resolve().parent
+def _find_program_dir() -> Path:
+    """Localise le dossier contenant app.py, même quand IDLE ne définit pas __file__."""
+    candidates: list[Path] = []
+
+    file_name = globals().get("__file__")
+    if file_name:
+        candidates.append(Path(str(file_name)).resolve().parent)
+
+    if sys.argv and sys.argv[0]:
+        candidates.append(Path(sys.argv[0]).resolve().parent)
+
+    current = Path.cwd().resolve()
+    candidates.extend((current, current / "python"))
+
+    # Supprime les doublons tout en conservant l'ordre.
+    checked: set[Path] = set()
+    for candidate in candidates:
+        if candidate in checked:
+            continue
+        checked.add(candidate)
+        if (candidate / "app.py").is_file():
+            return candidate
+
+    locations = "\n".join(f"- {path}" for path in checked)
+    raise RuntimeError(
+        "Impossible de localiser le dossier du logiciel SP55 contenant app.py.\n"
+        "Lancez main.py depuis le dossier python du projet.\n\n"
+        f"Emplacements examinés :\n{locations}"
+    )
+
+
+PROGRAM_DIR = _find_program_dir()
 if str(PROGRAM_DIR) not in sys.path:
     sys.path.insert(0, str(PROGRAM_DIR))
 os.chdir(PROGRAM_DIR)
