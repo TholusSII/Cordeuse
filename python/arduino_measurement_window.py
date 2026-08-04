@@ -3,8 +3,6 @@ from __future__ import annotations
 from collections import deque
 
 import pyqtgraph as pg
-import serial
-from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QCheckBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QMainWindow, QMessageBox, QPushButton, QSpinBox, QVBoxLayout, QWidget,
@@ -30,25 +28,24 @@ CHANNELS = {
 
 
 class ArduinoMeasurementWindow(QMainWindow):
-    """Pilotage et tracé temps réel des mesures émises par l'Arduino Mega."""
+    """Pilotage et tracé des mesures via la connexion Arduino partagée."""
 
     MAX_POINTS = 4000
 
     def __init__(self, serial_manager, parent=None) -> None:
         super().__init__(parent)
         self.manager = serial_manager
-        self.connection: serial.Serial | None = None
-        self.rx_buffer = bytearray()
+        self.streaming = False
         self.times = deque(maxlen=self.MAX_POINTS)
         self.values = {key: deque(maxlen=self.MAX_POINTS) for key in CHANNELS}
         self.curves: dict[str, pg.PlotDataItem] = {}
-        self.timer = QTimer(self)
-        self.timer.setInterval(20)
-        self.timer.timeout.connect(self.poll_serial)
         self.setWindowTitle("Mesures Arduino Mega — SP55")
         self.resize(1200, 760)
         self.setMinimumSize(980, 650)
         self._build_ui()
+        self.manager.control_line_received.connect(self.handle_serial_line)
+        self.manager.control_state_changed.connect(self.control_state_changed)
+        self._refresh_connection_ui()
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -114,8 +111,8 @@ class ArduinoMeasurementWindow(QMainWindow):
         layout.addLayout(body, 1)
 
         actions = QHBoxLayout()
-        self.connect_button = QPushButton("Connecter et recevoir")
-        self.connect_button.clicked.connect(self.toggle_connection)
+        self.connect_button = QPushButton("Activer la réception")
+        self.connect_button.clicked.connect(self.toggle_streaming)
         start_button = QPushButton("Démarrer traction")
         start_button.clicked.connect(lambda: self.send_command("START"))
         stop_button = QPushButton("Arrêter / retour")
@@ -133,85 +130,85 @@ class ArduinoMeasurementWindow(QMainWindow):
         layout.addLayout(actions)
         self.refresh_curves()
 
-    def toggle_connection(self) -> None:
-        if self.connection and self.connection.is_open:
-            self.disconnect_serial()
+    def _refresh_connection_ui(self) -> None:
+        if self.streaming:
+            self.connect_button.setText("Suspendre la réception")
         else:
-            self.connect_serial()
+            self.connect_button.setText("Activer la réception")
+        if self.manager.control_is_open:
+            endpoint = self.manager.control
+            self.status.setText(
+                f"Connexion partagée active sur {endpoint.port} — {endpoint.baudrate} bauds"
+            )
+        else:
+            self.status.setText("Arduino déconnecté")
 
-    def connect_serial(self) -> None:
+    def toggle_streaming(self) -> None:
+        if self.streaming:
+            self.stop_streaming()
+        else:
+            self.start_streaming()
+
+    def start_streaming(self) -> None:
         endpoint = self.manager.control
         if not endpoint.port:
-            QMessageBox.warning(self, "Arduino", "Configurez d'abord le port de l'Arduino Mega dans Réglages.")
+            QMessageBox.warning(
+                self,
+                "Arduino",
+                "Configurez d'abord le port de l'Arduino Mega dans Réglages.",
+            )
             return
         try:
-            self.connection = serial.Serial(endpoint.port, endpoint.baudrate, timeout=0, write_timeout=1)
-            self.connection.reset_input_buffer()
-            self.connection.write(encode_line("HELLO?"))
-            self.connection.write(stream_command(True, self.period.value()))
-            self.connection.flush()
-        except (OSError, serial.SerialException) as exc:
-            self.connection = None
+            self.manager.open_control()
+            self.manager.write_control(encode_line("HELLO?"))
+            self.manager.write_control(stream_command(True, self.period.value()))
+        except Exception as exc:
             QMessageBox.critical(self, "Connexion impossible", str(exc))
             return
-        self.timer.start()
-        self.connect_button.setText("Déconnecter")
-        self.status.setText(f"Connecté à {endpoint.port} — {endpoint.baudrate} bauds")
+        self.streaming = True
+        self._refresh_connection_ui()
 
-    def disconnect_serial(self) -> None:
-        self.timer.stop()
-        if self.connection:
+    def stop_streaming(self) -> None:
+        if self.manager.control_is_open:
             try:
-                if self.connection.is_open:
-                    self.connection.write(stream_command(False, self.period.value()))
-                    self.connection.close()
-            except (OSError, serial.SerialException):
+                self.manager.write_control(stream_command(False, self.period.value()))
+            except Exception:
                 pass
-        self.connection = None
-        self.connect_button.setText("Connecter et recevoir")
-        self.status.setText("Déconnecté")
+        self.streaming = False
+        self._refresh_connection_ui()
 
     def send_command(self, command: str) -> None:
-        if not self.connection or not self.connection.is_open:
-            QMessageBox.information(self, "Arduino", "Connectez d'abord l'Arduino Mega.")
-            return
         try:
-            self.connection.write(encode_line(command))
-            self.connection.flush()
-        except (OSError, serial.SerialException) as exc:
+            self.manager.write_control(encode_line(command))
+        except Exception as exc:
             QMessageBox.critical(self, "Envoi impossible", str(exc))
-            self.disconnect_serial()
 
     def apply_values(self) -> None:
-        if not self.connection or not self.connection.is_open:
-            QMessageBox.information(self, "Arduino", "Connectez d'abord l'Arduino Mega.")
-            return
         try:
-            self.connection.write(set_values_command(setpoint=self.setpoint.value(), pwm=self.pwm.value()))
-            self.connection.write(stream_command(True, self.period.value()))
-            self.connection.flush()
-        except (OSError, serial.SerialException) as exc:
+            self.manager.write_control(
+                set_values_command(
+                    setpoint=self.setpoint.value(),
+                    pwm=self.pwm.value(),
+                )
+            )
+            if self.streaming:
+                self.manager.write_control(stream_command(True, self.period.value()))
+        except Exception as exc:
             QMessageBox.critical(self, "Mise à jour impossible", str(exc))
 
-    def poll_serial(self) -> None:
-        if not self.connection or not self.connection.is_open:
-            return
-        try:
-            waiting = self.connection.in_waiting
-            if waiting:
-                self.rx_buffer.extend(self.connection.read(waiting))
-        except (OSError, serial.SerialException):
-            self.disconnect_serial()
-            return
-        while b"\n" in self.rx_buffer:
-            raw, _, remainder = self.rx_buffer.partition(b"\n")
-            self.rx_buffer = bytearray(remainder)
-            line = raw.decode("utf-8", errors="replace").strip()
-            frame = parse_arduino_line(line)
-            if frame.kind == "MEAS":
-                self.add_measurement(frame)
-            elif frame.kind in {"HELLO", "ACK", "EVENT", "ERR"}:
-                self.status.setText(frame.raw)
+    def control_state_changed(self, connected: bool, message: str) -> None:
+        if not connected:
+            self.streaming = False
+        self._refresh_connection_ui()
+        if message:
+            self.status.setText(message)
+
+    def handle_serial_line(self, line: str) -> None:
+        frame = parse_arduino_line(line)
+        if frame.kind == "MEAS":
+            self.add_measurement(frame)
+        elif frame.kind in {"HELLO", "ACK", "EVENT", "ERR", "CAPS"}:
+            self.status.setText(frame.raw)
 
     def add_measurement(self, frame) -> None:
         t = frame.number("t") / 1000.0
@@ -221,17 +218,26 @@ class ArduinoMeasurementWindow(QMainWindow):
         self.update_plot()
         mode = frame.fields.get("mode", "?")
         state = frame.fields.get("state", "?")
-        self.status.setText(f"Réception — mode {mode}, état {state}, {len(self.times)} points")
+        self.status.setText(
+            f"Réception — mode {mode}, état {state}, {len(self.times)} points"
+        )
 
     def refresh_curves(self) -> None:
         selected = {key for key, check in self.checks.items() if check.isChecked()}
         for key in list(self.curves):
             if key not in selected:
                 self.plot.removeItem(self.curves.pop(key))
-        pens = ["#2563eb", "#ef4444", "#16a34a", "#f59e0b", "#7c3aed", "#0891b2", "#ec4899", "#64748b"]
+        pens = [
+            "#2563eb", "#ef4444", "#16a34a", "#f59e0b",
+            "#7c3aed", "#0891b2", "#ec4899", "#64748b",
+        ]
         for index, key in enumerate(selected):
             if key not in self.curves:
-                self.curves[key] = self.plot.plot([], [], pen=pg.mkPen(pens[index % len(pens)], width=2), name=CHANNELS[key][0])
+                self.curves[key] = self.plot.plot(
+                    [], [],
+                    pen=pg.mkPen(pens[index % len(pens)], width=2),
+                    name=CHANNELS[key][0],
+                )
         self.update_plot()
 
     def update_plot(self) -> None:
@@ -246,5 +252,7 @@ class ArduinoMeasurementWindow(QMainWindow):
         self.update_plot()
 
     def closeEvent(self, event) -> None:  # noqa: N802
-        self.disconnect_serial()
+        # La fenêtre arrête seulement le flux. La connexion reste au manager et
+        # demeure disponible pour BO/BF/Constructeur et les autres commandes.
+        self.stop_streaming()
         super().closeEvent(event)
